@@ -12,15 +12,22 @@ import (
 
 var jwtSecret []byte
 
-func init() {  
-	secret := os.Getenv("JWT_SECRET_KEY") 
-	jwtSecret = []byte(secret)
+func getJWTSecret() []byte {
+	if jwtSecret == nil {
+		secret := os.Getenv("JWT_SECRET_KEY")
+		if secret == "" {
+			panic("JWT_SECRET_KEY not set in environment")
+		}
+		jwtSecret = []byte(secret)
+		fmt.Println("JWT Secret loaded successfully")
+	}
+	return jwtSecret
 }
 
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
-		// fmt.Println("Authorization Header:", authHeader)
+		fmt.Println("Authorization Header:", authHeader)
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing or invalid Authorization header"})
@@ -35,7 +42,7 @@ func AuthMiddleware() gin.HandlerFunc {
 				fmt.Printf("Unexpected signing method: %v\n", token.Header["alg"])
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return jwtSecret, nil
+			return getJWTSecret(), nil
 		})
 
 		if err != nil {
@@ -46,13 +53,14 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok || !token.Valid {
-			// fmt.Println("Invalid token claims")
+			fmt.Println("Invalid token claims")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 			return
-		} 
+		}
+
 		if exp, ok := claims["exp"].(float64); ok {
 			if int64(exp) < time.Now().Unix() {
-				// fmt.Println("Token expired at", exp)
+				fmt.Println("Token expired at", exp)
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
 				return
 			}
@@ -61,8 +69,6 @@ func AuthMiddleware() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			return
 		}
-
-
 
 		fmt.Println("Decoded JWT claims:", claims)
 
@@ -80,7 +86,7 @@ func AuthMiddleware() gin.HandlerFunc {
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role := c.GetString("role")
-		// fmt.Println("User role in AdminMiddleware:", role) 
+		fmt.Println("User role in AdminMiddleware:", role)
 		if role != "admin" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Admin only"})
 			return
