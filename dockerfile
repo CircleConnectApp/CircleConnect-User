@@ -1,4 +1,4 @@
-FROM golang:1.24
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
@@ -6,6 +6,18 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -v -o /usr/local/bin/app ./...
 
-CMD ["app"]
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./main.go
+
+FROM alpine:latest
+
+WORKDIR /app
+
+RUN apk add --no-cache ca-certificates
+
+COPY --from=builder /app/main .
+
+#write the correct port 
+EXPOSE 8081
+
+CMD ["./main"]
